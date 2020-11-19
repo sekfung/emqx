@@ -1178,7 +1178,7 @@ auth_connect(#mqtt_packet_connect{clientid  = ClientId,
                                   password  = Password
                                  },
              #channel{clientinfo = ClientInfo} = Channel) ->
-    case emqx_access_control:authenticate(ClientInfo#{password => Password}) of
+    case emqx_access_control:authenticate(ClientInfo#{password => Password, clientid => ClientId, username => Username}) of
         {ok, AuthResult} ->
             is_anonymous(AuthResult) andalso
                 emqx_metrics:inc('client.auth.anonymous'),
@@ -1276,7 +1276,7 @@ packing_alias(Packet = #mqtt_packet{
                         },
               Channel = ?IS_MQTT_V5 = #channel{topic_aliases = TopicAliases, alias_maximum = Limits}) ->
     case find_alias(outbound, Topic, TopicAliases) of
-        {ok, AliasId} -> 
+        {ok, AliasId} ->
             NPublish = Publish#mqtt_packet_publish{
                             topic_name = <<>>,
                             properties = maps:merge(Prop, #{'Topic-Alias' => AliasId})
