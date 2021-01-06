@@ -417,6 +417,14 @@ t_handle_deliver(_) ->
     {ok, {outgoing, Packets}, _Ch} = emqx_channel:handle_deliver(Delivers, channel()),
     ?assertEqual([?QOS_1, ?QOS_2], [emqx_packet:qos(Pkt)|| Pkt <- Packets]).
 
+t_handle_deliver_nl(_) ->
+    ClientInfo = clientinfo(#{clientid => <<"clientid">>}),
+    Session = session(#{subscriptions => #{<<"t1">> => #{nl => 1}}}),
+    Channel = channel(#{clientinfo => ClientInfo, session => Session}),
+    Msg = emqx_message:make(<<"clientid">>, ?QOS_1, <<"t1">>, <<"qos1">>),
+    NMsg = emqx_message:set_flag(nl, Msg),
+    {ok, Channel} = emqx_channel:handle_deliver([{deliver, <<"t1">>, NMsg}], Channel).
+
 %%--------------------------------------------------------------------
 %% Test cases for handle_out
 %%--------------------------------------------------------------------
@@ -433,13 +441,6 @@ t_handle_out_publish_1(_) ->
     Msg = emqx_message:make(<<"clientid">>, ?QOS_1, <<"t">>, <<"payload">>),
     {ok, {outgoing, [?PUBLISH_PACKET(?QOS_1, <<"t">>, 1, <<"payload">>)]}, _Chan}
         = emqx_channel:handle_out(publish, [{1, Msg}], channel()).
-
-t_handle_out_publish_nl(_) ->
-    ClientInfo = clientinfo(#{clientid => <<"clientid">>}),
-    Channel = channel(#{clientinfo => ClientInfo}),
-    Msg = emqx_message:make(<<"clientid">>, ?QOS_1, <<"t1">>, <<"qos1">>),
-    Pubs = [{1, emqx_message:set_flag(nl, Msg)}],
-    {ok, {outgoing,[]}, Channel} = emqx_channel:handle_out(publish, Pubs, Channel).
 
 t_handle_out_connack_sucess(_) ->
     {ok, [{event, connected}, {connack, ?CONNACK_PACKET(?RC_SUCCESS, 0, _)}], Channel} =
@@ -685,6 +686,18 @@ t_terminate(_) ->
     ok = emqx_channel:terminate(normal, channel()),
     ok = emqx_channel:terminate(sock_error, channel(#{conn_state => connected})),
     ok = emqx_channel:terminate({shutdown, kicked}, channel(#{conn_state => connected})).
+
+t_ws_cookie_init(_) ->
+    WsCookie = [{<<"session_id">>, <<"xyz">>}],
+    ConnInfo = #{socktype => ws,
+                 peername => {{127,0,0,1}, 3456},
+                 sockname => {{127,0,0,1}, 1883},
+                 peercert => nossl,
+                 conn_mod => emqx_ws_connection,
+                 ws_cookie => WsCookie
+                },
+    Channel = emqx_channel:init(ConnInfo, [{zone, zone}]),
+    ?assertMatch(#{ws_cookie := WsCookie}, emqx_channel:info(clientinfo, Channel)).
 
 %%--------------------------------------------------------------------
 %% Helper functions

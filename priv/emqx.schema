@@ -1026,6 +1026,7 @@ end}.
 %% of queued MQTT messages of QoS 1 and 2.
 %% Zero or negative is to disable.
 {mapping, "zone.$name.force_shutdown_policy", "emqx.zones", [
+  {default, "default"},
   {datatype, string}
 ]}.
 
@@ -1082,6 +1083,17 @@ end}.
                                          count => list_to_integer(Count)}
                                end,
                     {force_gc_policy, GcPolicy};
+               (["force_shutdown_policy"], "default") ->
+                    {DefaultLen, DefaultSize} =
+                        case WordSize = erlang:system_info(wordsize) of
+                            8 -> % arch_64
+                                {10000, cuttlefish_bytesize:parse("64MB")};
+                            4 -> % arch_32
+                                {1000, cuttlefish_bytesize:parse("32MB")}
+                        end,
+                    {force_shutdown_policy, #{message_queue_len => DefaultLen,
+                                              max_heap_size => DefaultSize div WordSize
+                                             }};
                (["force_shutdown_policy"], Val) ->
                     [Len, Siz] = string:tokens(Val, "| "),
                     MaxSiz = case WordSize = erlang:system_info(wordsize) of
@@ -1354,6 +1366,15 @@ end}.
 {mapping, "listener.ssl.$name.handshake_timeout", "emqx.listeners", [
   {default, "15s"},
   {datatype, {duration, ms}}
+]}.
+
+{mapping, "listener.ssl.$name.depth", "emqx.listeners", [
+  {default, 10},
+  {datatype, integer}
+]}.
+
+{mapping, "listener.ssl.$name.key_password", "emqx.listeners", [
+  {datatype, string}
 ]}.
 
 {mapping, "listener.ssl.$name.dhfile", "emqx.listeners", [
@@ -1676,6 +1697,15 @@ end}.
   {datatype, string}
 ]}.
 
+{mapping, "listener.wss.$name.depth", "emqx.listeners", [
+  {default, 10},
+  {datatype, integer}
+]}.
+
+{mapping, "listener.wss.$name.key_password", "emqx.listeners", [
+  {datatype, string}
+]}.
+
 {mapping, "listener.wss.$name.verify", "emqx.listeners", [
   {datatype, atom}
 ]}.
@@ -1866,6 +1896,8 @@ end}.
                           {ciphers, Ciphers},
                           {user_lookup_fun, UserLookupFun},
                           {handshake_timeout, cuttlefish:conf_get(Prefix ++ ".handshake_timeout", Conf, undefined)},
+                          {depth, cuttlefish:conf_get(Prefix ++ ".depth", Conf, undefined)},
+                          {password, cuttlefish:conf_get(Prefix ++ ".key_password", Conf, undefined)},
                           {dhfile, cuttlefish:conf_get(Prefix ++ ".dhfile", Conf, undefined)},
                           {keyfile,    cuttlefish:conf_get(Prefix ++ ".keyfile", Conf, undefined)},
                           {certfile,   cuttlefish:conf_get(Prefix ++ ".certfile", Conf, undefined)},
